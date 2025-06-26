@@ -14,6 +14,9 @@ use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
 
 use OpenTelemetry\Context\Context;
+use OpenTelemetry\Contrib\Instrumentation\MySqli\Opentelemetry;
+use OpenTelemetry\Contrib\Instrumentation\MySqli\Utils;
+use OpenTelemetry\SDK\Common\Configuration\Configuration;
 use function OpenTelemetry\Instrumentation\hook;
 use OpenTelemetry\SemConv\TraceAttributes;
 use OpenTelemetry\SemConv\Version;
@@ -98,7 +101,7 @@ class MySqliInstrumentation
             null,
             'mysqli_query',
             pre: static function (...$args) use ($instrumentation, $tracker) {
-                self::queryPreHook('mysqli_query', $instrumentation, $tracker, ...$args);
+                return self::queryPreHook('mysqli_query', $instrumentation, $tracker, ...$args);
             },
             post: static function (...$args) use ($instrumentation, $tracker) {
                 self::queryPostHook($instrumentation, $tracker, ...$args);
@@ -108,7 +111,7 @@ class MySqliInstrumentation
             mysqli::class,
             'query',
             pre: static function (...$args) use ($instrumentation, $tracker) {
-                self::queryPreHook('mysqli::query', $instrumentation, $tracker, ...$args);
+                return self::queryPreHook('mysqli::query', $instrumentation, $tracker, ...$args);
             },
             post: static function (...$args) use ($instrumentation, $tracker) {
                 self::queryPostHook($instrumentation, $tracker, ...$args);
@@ -119,7 +122,7 @@ class MySqliInstrumentation
             null,
             'mysqli_real_query',
             pre: static function (...$args) use ($instrumentation, $tracker) {
-                self::queryPreHook('mysqli_real_query', $instrumentation, $tracker, ...$args);
+                return self::queryPreHook('mysqli_real_query', $instrumentation, $tracker, ...$args);
             },
             post: static function (...$args) use ($instrumentation, $tracker) {
                 self::queryPostHook($instrumentation, $tracker, ...$args);
@@ -129,7 +132,7 @@ class MySqliInstrumentation
             mysqli::class,
             'real_query',
             pre: static function (...$args) use ($instrumentation, $tracker) {
-                self::queryPreHook('mysqli::real_query', $instrumentation, $tracker, ...$args);
+                return self::queryPreHook('mysqli::real_query', $instrumentation, $tracker, ...$args);
             },
             post: static function (...$args) use ($instrumentation, $tracker) {
                 self::queryPostHook($instrumentation, $tracker, ...$args);
@@ -161,7 +164,7 @@ class MySqliInstrumentation
             null,
             'mysqli_multi_query',
             pre: static function (...$args) use ($instrumentation, $tracker) {
-                self::queryPreHook('mysqli_multi_query', $instrumentation, $tracker, ...$args);
+                return self::queryPreHook('mysqli_multi_query', $instrumentation, $tracker, ...$args);
             },
             post: static function (...$args) use ($instrumentation, $tracker) {
                 self::multiQueryPostHook($instrumentation, $tracker, ...$args);
@@ -171,7 +174,7 @@ class MySqliInstrumentation
             mysqli::class,
             'multi_query',
             pre: static function (...$args) use ($instrumentation, $tracker) {
-                self::queryPreHook('mysqli::multi_query', $instrumentation, $tracker, ...$args);
+                return self::queryPreHook('mysqli::multi_query', $instrumentation, $tracker, ...$args);
             },
             post: static function (...$args) use ($instrumentation, $tracker) {
                 self::multiQueryPostHook($instrumentation, $tracker, ...$args);
@@ -440,11 +443,33 @@ class MySqliInstrumentation
     }
 
     /** @param non-empty-string $spanName */
-    private static function queryPreHook(string $spanName, CachedInstrumentation $instrumentation, MySqliTracker $tracker, $obj, array $params, ?string $class, string $function, ?string $filename, ?int $lineno): void
+    private static function queryPreHook(string $spanName, CachedInstrumentation $instrumentation, MySqliTracker $tracker, $obj, array $params, ?string $class, string $function, ?string $filename, ?int $lineno): array
     {
         $span = self::startSpan($spanName, $instrumentation, $class, $function, $filename, $lineno, []);
         $mysqli = $obj ? $obj : $params[0];
+        $query = $obj ? $params[0] : $params[1];
+        $query = mb_convert_encoding($query ?? 'undefined', 'UTF-8');
+
         self::addTransactionLink($tracker, $span, $mysqli);
+
+        if (class_exists('OpenTelemetry\SDK\Common\Configuration\Configuration')) {
+            if (Configuration::getBoolean('SW_APM_ENABLED_SQLCOMMENT', false) && $query !== 'undefined') {
+                $query = self::appendSqlComments($query);
+                $span->setAttributes([
+                    "sw.modified.query" => $query
+                ]);
+                if ($obj) {
+                    return [
+                        0 => $query
+                    ];
+                } else {
+                    return [
+                        1 => $query
+                    ];
+                }
+            }
+        }
+        return [];
     }
 
     private static function queryPostHook(CachedInstrumentation $instrumentation, MySqliTracker $tracker, $obj, array $params, mixed $retVal, ?\Throwable $exception)
@@ -823,6 +848,15 @@ class MySqliInstrumentation
         }
 
         return null;
+    }
+
+    private static function appendSqlComments(string $query): string
+    {
+        $comments = Opentelemetry::getOpentelemetryValues();
+        $query = trim($query);
+        $hasSemicolon = $query[-1] === ';';
+        $query = rtrim($query, ';');
+        return $query . Utils::formatComments(array_filter($comments)) . ($hasSemicolon ? ';' : '');
     }
 
 }
