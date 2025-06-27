@@ -455,9 +455,6 @@ class MySqliInstrumentation
         if (class_exists('OpenTelemetry\SDK\Common\Configuration\Configuration')) {
             if (Configuration::getBoolean('SW_APM_ENABLED_SQLCOMMENT', false) && $query !== 'undefined') {
                 $query = self::appendSqlComments($query);
-                $span->setAttributes([
-                    "sw.modified.query" => $query
-                ]);
                 if ($obj) {
                     return [
                         0 => $query
