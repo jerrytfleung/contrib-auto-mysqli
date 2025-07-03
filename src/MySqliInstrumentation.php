@@ -453,7 +453,7 @@ class MySqliInstrumentation
         self::addTransactionLink($tracker, $span, $mysqli);
 
         if (class_exists('OpenTelemetry\SDK\Common\Configuration\Configuration')) {
-            if (Configuration::getBoolean('SW_APM_ENABLED_SQLCOMMENT', false) && $query !== 'undefined') {
+            if (Configuration::getBoolean('SW_APM_SQLTAGGER', false) && $query !== 'undefined') {
                 $query = self::appendSqlComments($query);
                 if ($obj) {
                     return [
