@@ -14,9 +14,6 @@ use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
 
 use OpenTelemetry\Context\Context;
-use OpenTelemetry\Contrib\Instrumentation\MySqli\Opentelemetry;
-use OpenTelemetry\Contrib\Instrumentation\MySqli\Utils;
-use OpenTelemetry\SDK\Common\Configuration\Configuration;
 use function OpenTelemetry\Instrumentation\hook;
 use OpenTelemetry\SemConv\TraceAttributes;
 use OpenTelemetry\SemConv\Version;
@@ -452,21 +449,16 @@ class MySqliInstrumentation
 
         self::addTransactionLink($tracker, $span, $mysqli);
 
-        if (class_exists('OpenTelemetry\SDK\Common\Configuration\Configuration')) {
-            if (Configuration::getBoolean('SW_APM_ENABLED_SQLCOMMENT', false) && $query !== 'undefined') {
-                $query = self::appendSqlComments($query);
-                if ($obj) {
-                    return [
-                        0 => $query
-                    ];
-                } else {
-                    return [
-                        1 => $query
-                    ];
-                }
-            }
+        $query = self::appendSqlComments($query);
+        if ($obj) {
+            return [
+                0 => $query
+            ];
+        } else {
+            return [
+                1 => $query
+            ];
         }
-        return [];
     }
 
     private static function queryPostHook(CachedInstrumentation $instrumentation, MySqliTracker $tracker, $obj, array $params, mixed $retVal, ?\Throwable $exception)
