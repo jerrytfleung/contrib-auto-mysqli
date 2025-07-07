@@ -1,5 +1,5 @@
 {
-  "name": "jerrytfleung/contrib-auto-mysqli",
+  "name": "open-telemetry/opentelemetry-auto-mysqli",
   "description": "OpenTelemetry auto-instrumentation for mysqli",
   "keywords": [
     "opentelemetry",
