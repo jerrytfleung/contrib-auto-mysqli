@@ -30,6 +30,14 @@ class Opentelemetry
 
         $trace = TraceContextPropagator::getInstance();
         $trace->inject($carrier);
+
+        // Inject service name, if ServiceNamePropagator is present
+        if (class_exists('OpenTelemetry\Contrib\Propagation\ServiceName\ServiceNamePropagator')) {
+            /** @phan-suppress-next-line PhanUndeclaredClassMethod */
+            $prop = new \OpenTelemetry\Contrib\Propagation\ServiceName\ServiceNamePropagator();
+            /** @phan-suppress-next-line PhanUndeclaredClassMethod */
+            $prop->inject($carrier);
+        }
         return $carrier;
     }
 }
